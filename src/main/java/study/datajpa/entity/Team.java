@@ -10,7 +10,7 @@ import java.util.List;
 @Getter @Setter
 @ToString(of = {"id", "name"})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Team {
+public class Team extends BaseEntity {
 
     @Id
     @GeneratedValue

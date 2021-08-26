@@ -314,4 +314,51 @@ class MemberRepositoryTest {
         // 쿼리힌트 리드온리로 변경감지 체크를 안해서 업데이트를 안함.
         List<Member> memgggg = memberRepository.findLockByUsername("memgggg");
     }
+
+    @Test
+    public void findMemberCustom() throws Exception {
+        List<Member> findMembers = memberRepository.findMemberCustom();
+
+        //then
+    }
+
+    @Test
+    public void JpaEventBaseEntity() throws Exception {
+        //given
+        Member member = new Member("밍밍밍", 20);
+        memberRepository.save(member); // @PrePersist
+
+        Thread.sleep(100);
+        member.setUsername("몽몽이");
+
+        em.flush(); //@PreUpdate
+        em.clear();
+        //when
+        List<Member> findMembers = memberRepository.findByUsername(member.getUsername());
+
+        for (Member findMember : findMembers) {
+            System.out.println("findMember.getCreatedDate() = " + findMember.getCreatedDate());
+            System.out.println("findMember.getUpdatedDate() = " + findMember.getLastModifiedDate());
+            System.out.println("findMember.getCreatedBy() = " + findMember.getCreatedBy());
+            System.out.println("findMember.getModifiedBy() = " + findMember.getLastModifiedBy());
+        }
+    }
+
+    @Test
+    public void projection() throws Exception {
+        //given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+        em.persist(new Member("m1", 0, teamA));
+        em.persist(new Member("m2", 0, teamA));
+        em.flush();
+        //when
+        //Probe 생성
+
+        List<UsernameOnlyDto> m1 = memberRepository.findProjectionsByUsername("m1");
+
+        for (UsernameOnlyDto usernameOnly : m1) {
+            System.out.println("usernameOnly = " + usernameOnly.getUsername());
+        }
+    }
 }

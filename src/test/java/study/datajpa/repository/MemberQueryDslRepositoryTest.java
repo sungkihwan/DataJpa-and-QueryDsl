@@ -1,17 +1,29 @@
 package study.datajpa.repository;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
+import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.commons.util.ExceptionUtils;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import study.datajpa.dto.MemberDto;
+import study.datajpa.dto.QMemberDto;
+import study.datajpa.dto.UserDto;
 import study.datajpa.entity.Member;
+import study.datajpa.entity.QMember;
 import study.datajpa.entity.Team;
 
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
+import javax.persistence.*;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -239,6 +251,332 @@ public class MemberQueryDslRepositoryTest {
         assertThat(fetch)
                 .extracting("username")
                 .containsExactly("teamA", "teamB");
+    }
 
+    @Test
+    public void join_on_filtering() {
+        List<Tuple> teamA = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(member.team, team).on(team.name.eq("teamA"))
+                .fetch();
+
+        for (Tuple tuple : teamA) {
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    // 연관관계가 없는 조인
+    @Test
+    public void join_on_no_relation() {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+        em.persist(new Member("teamC"));
+
+        List<Tuple> fetch = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(team).on(member.username.eq(team.name))
+                .fetch();
+
+        for (Tuple fetch1 : fetch) {
+            System.out.println("fetch1 = " + fetch1);
+        }
+    }
+
+    @PersistenceUnit
+    EntityManagerFactory emf;
+
+    @Test
+    public void noFetchJoin() {
+        em.flush();
+        em.clear();
+
+        Member member1 = queryFactory
+                .selectFrom(member)
+                .join(member.team, team).fetchJoin()
+                .where(member.username.eq("member1"))
+                .fetchOne();
+
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(member1.getTeam());
+        assertThat(loaded).as("페치조인 미적용").isTrue();
+    }
+
+    @Test
+    public void subQuery() {
+        QMember memberSub = new QMember("memberSub");
+
+        List<Member> fetch = queryFactory
+                .selectFrom(member)
+                .where(member.age.eq(
+                        JPAExpressions
+                                .select(memberSub.age.max())
+                                .from(memberSub)
+                ))
+                .fetch();
+
+        for (Member fetch1 : fetch) {
+            System.out.println("fetch1 = " + fetch1);
+        }
+
+        assertThat(fetch).extracting("age")
+                .containsExactly(99);
+    }
+
+    @Test
+    public void caseQuery() {
+        List<String> fetch = queryFactory
+                .select(member.age
+                        .when(10).then("음머")
+                        .when(20).then("케케")
+                        .otherwise("기무찌"))
+                .from(member)
+                .fetch();
+
+        for (String s : fetch) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void complexCase() {
+        List<String> fetch = queryFactory
+                .select(new CaseBuilder()
+                        .when(member.age.between(10,20)).then("음머")
+                        .when(member.age.between(40,70)).then("케케")
+                        .otherwise("기무찌"))
+                .from(member)
+                .fetch();
+
+        for (String s : fetch) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void constant() {
+        List<Tuple> result = queryFactory
+                .select(member.username, Expressions.constant("A"))
+                .from(member)
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    @Test
+    public void concat() {
+        List<String> fetch = queryFactory
+                .select(member.username.concat("_").concat(member.age.stringValue()))
+                .from(member)
+                .where(member.username.eq("member1"))
+                .fetch();
+
+        for (String s : fetch) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void findDtoByJPQL() throws Exception {
+        //given
+        List<MemberDto> query = em.createQuery("select new study.datajpa.dto.MemberDto(m.username, m.age) " +
+                "from Member m", MemberDto.class)
+                .getResultList();
+
+        for (MemberDto dto : query) {
+            System.out.println("dto = " + dto);
+        }
+    }
+
+    // setter가 필요함
+    @Test
+    public void findDtoBySetter() throws Exception {
+        //given
+        List<MemberDto> fetch = queryFactory
+                .select(Projections.bean(MemberDto.class,
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto dto : fetch) {
+            System.out.println("dto = " + dto);
+        }
+    }
+
+    // 필드에 직접 넣는 방법
+    @Test
+    public void findDtoByField() throws Exception {
+        QMember memberSub = new QMember("memberSub");
+
+        List<UserDto> fetch = queryFactory
+                .select(Projections.fields(UserDto.class,
+                        member.username.as("name"),
+                        ExpressionUtils.as(JPAExpressions
+                                .select(memberSub.age.max())
+                                .from(memberSub), "age")))
+                .from(member)
+                .fetch();
+
+        for (UserDto dto : fetch) {
+            System.out.println("dto = " + dto);
+        }
+    }
+
+    // 생성자로 넣는 방법
+    @Test
+    public void findDtoByConstructor() throws Exception {
+        //given
+        List<MemberDto> fetch = queryFactory
+                .select(Projections.constructor(MemberDto.class,
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto dto : fetch) {
+            System.out.println("dto = " + dto);
+        }
+    }
+
+    @Test
+    public void findDtoByQueryProjection() {
+        List<MemberDto> fetch = queryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto dto : fetch) {
+            System.out.println("dto = " + dto);
+        }
+    }
+
+    @Test
+    public void dynamicQuery_BooleanBuilder() {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember1(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember1(String usernameParam, Integer ageParam) {
+
+        BooleanBuilder builder = new BooleanBuilder();
+        if (usernameParam != null) {
+            builder.and(member.username.eq(usernameParam));
+        }
+
+        if (ageParam != null) {
+            builder.and(member.age.eq(ageParam));
+        }
+
+        return queryFactory
+                .selectFrom(member)
+                .where(builder)
+                .fetch();
+    }
+
+    @Test
+    public void dynamicQuery_WhereParam() {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember2(String usernameParam, Integer ageParam) {
+        return queryFactory
+                .selectFrom(member)
+                .where(usernameEq(usernameParam), ageEq(ageParam))
+                //.where(allEq(usernameParam, ageParam))
+                .fetch();
+    }
+
+    private BooleanExpression usernameEq(String usernameParam) {
+        if (usernameParam != null) {
+            return member.username.eq(usernameParam);
+        } else {
+            return null;
+        }
+    }
+
+    private BooleanExpression ageEq(Integer ageParam) {
+//        if (ageParam == null) {
+//            return null;
+//        }
+//        return member.age.eq(ageParam);
+        return ageParam == null ? null : member.age.eq(ageParam);
+    }
+
+    private BooleanExpression allEq(String usernameParam, Integer ageParam) {
+        return usernameEq(usernameParam).and(ageEq(ageParam));
+    }
+
+    @Test
+    public void bulkUpdate() throws Exception {
+        //given
+        long execute = queryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+        em.flush();
+        em.clear();
+        //when
+        System.out.println("execute = " + execute);
+        //then
+    }
+
+    @Test
+    public void bulkAdd() {
+        long execute = queryFactory
+                .update(member)
+                .set(member.age, member.age.add(-1))
+                .execute();
+        em.flush();
+        em.clear();
+
+        System.out.println("execute = " + execute);
+    }
+
+    @Test
+    public void delete() {
+        long execute = queryFactory
+                .delete(member)
+                .where(member.age.gt(25))
+                .execute();
+        em.flush();
+        em.clear();
+
+        System.out.println("execute = " + execute);
+    }
+
+    @Test
+    public void sqlFunction() {
+        List<String> fetch = queryFactory
+                .select(Expressions.stringTemplate(
+                        "function('replace', {0}, {1}, {2})",
+                        member.username, "member", "M"))
+                .from(member)
+                .fetch();
+
+        for (String s : fetch) {
+            System.out.println("s = " + s);
+        }
+
+        List<String> fetch1 = queryFactory.select(member.username)
+                .from(member)
+//                .where(member.username.eq(
+//                        Expressions.stringTemplate("function('lower', {0})", member.username)))
+                .where(member.username.eq(member.username.lower()))
+                .fetch();
+
+        for (String s : fetch1) {
+            System.out.println("s = " + s);
+        }
     }
 }

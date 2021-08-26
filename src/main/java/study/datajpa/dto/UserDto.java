@@ -1,2 +1,11 @@
-package study.datajpa.dto;public class UserDto {
+package study.datajpa.dto;
+
+import lombok.Data;
+
+@Data
+public class UserDto {
+
+    private String name;
+    private int age;
+
 }
