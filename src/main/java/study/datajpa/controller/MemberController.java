@@ -9,10 +9,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import study.datajpa.dto.MemberDto;
+import study.datajpa.dto.MemberSearchCondition;
 import study.datajpa.entity.Member;
 import study.datajpa.repository.MemberRepository;
 
-import javax.annotation.PostConstruct;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -41,11 +42,19 @@ public class MemberController {
                 .map(MemberDto::new);
     }
 
-//    @PostConstruct
-//    public void init() {
-//        for (int i = 0; i < 100; i++) {
-//            memberRepository.save(new Member("user"+i, i));
-//        }
-//    }
+    @GetMapping("/v1/members")
+    public List<MemberDto> searchMemberV1(MemberSearchCondition cond) {
+        return memberRepository.search(cond);
+    }
+
+    @GetMapping("/v2/members")
+    public Page<MemberDto> searchMemberV2(MemberSearchCondition cond, Pageable pageable) {
+        return memberRepository.searchPageSimple(cond, pageable);
+    }
+
+    @GetMapping("/v3/members")
+    public Page<MemberDto> searchMemberV3(MemberSearchCondition cond, Pageable pageable) {
+        return memberRepository.searchPageComplex(cond, pageable);
+    }
 
 }

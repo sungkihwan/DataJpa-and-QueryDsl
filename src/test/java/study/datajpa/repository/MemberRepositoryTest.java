@@ -316,13 +316,6 @@ class MemberRepositoryTest {
     }
 
     @Test
-    public void findMemberCustom() throws Exception {
-        List<Member> findMembers = memberRepository.findMemberCustom();
-
-        //then
-    }
-
-    @Test
     public void JpaEventBaseEntity() throws Exception {
         //given
         Member member = new Member("밍밍밍", 20);

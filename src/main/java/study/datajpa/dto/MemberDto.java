@@ -12,7 +12,17 @@ public class MemberDto {
     private Long id;
     private String username;
     private int age;
+    private Long teamId;
     private String teamname;
+
+    @QueryProjection
+    public MemberDto(Long id, String username, int age, Long teamId, String teamname) {
+        this.id = id;
+        this.username = username;
+        this.age = age;
+        this.teamId = teamId;
+        this.teamname = teamname;
+    }
 
     public MemberDto(Long id, String username, String teamname) {
         this.id = id;

@@ -4,7 +4,6 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
-import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
@@ -13,7 +12,6 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.util.ExceptionUtils;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import study.datajpa.dto.MemberDto;
@@ -38,6 +36,9 @@ public class MemberQueryDslRepositoryTest {
     EntityManager em;
 
     JPAQueryFactory queryFactory;
+
+    @PersistenceUnit
+    EntityManagerFactory emf;
 
     @Test
     public void testEntity() {
@@ -284,8 +285,6 @@ public class MemberQueryDslRepositoryTest {
         }
     }
 
-    @PersistenceUnit
-    EntityManagerFactory emf;
 
     @Test
     public void noFetchJoin() {
